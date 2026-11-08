@@ -5,6 +5,8 @@ from __future__ import annotations
 from fastapi import FastAPI
 
 from canasta_api import __version__
+from canasta_api.errors import register_exception_handlers
+from canasta_api.logging import RequestContextMiddleware, configure_logging
 from canasta_api.routers import health, hello
 from canasta_api.settings import API_PREFIX, SERVICE_NAME, Settings
 
@@ -21,6 +23,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         openapi_url=f"{API_PREFIX}/openapi.json",
     )
     app.state.settings = resolved
+    configure_logging(resolved.log_level)
+    register_exception_handlers(app)
+    # Outermost user middleware: covers 404/405/422 and unhandled exceptions.
+    app.add_middleware(RequestContextMiddleware, env=resolved.app_env)
     app.include_router(health.router)
     app.include_router(hello.router)
     return app

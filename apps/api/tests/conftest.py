@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import json
+from collections.abc import Callable
+from typing import Any
+
 import pytest
 from fastapi import FastAPI
 
@@ -18,3 +22,17 @@ def settings() -> Settings:
 @pytest.fixture
 def app(settings: Settings) -> FastAPI:
     return create_app(settings)
+
+
+@pytest.fixture
+def log_lines(capsys: pytest.CaptureFixture[str]) -> Callable[[], list[dict[str, Any]]]:
+    """Return a callable that drains stdout and parses each line as JSON.
+
+    Each call returns only the lines emitted since the previous call.
+    """
+
+    def read() -> list[dict[str, Any]]:
+        out = capsys.readouterr().out
+        return [json.loads(line) for line in out.splitlines() if line.strip()]
+
+    return read
