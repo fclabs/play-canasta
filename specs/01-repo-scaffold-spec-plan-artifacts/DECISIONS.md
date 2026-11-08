@@ -77,3 +77,9 @@ Context: VC-004 needs non-zero exit when either part fails.
 Decision: shell loop records status per part and exits 1 at the end, so both parts always report.
 Rejected: `&&` chaining (hides second part's failures).
 Consequences: lint covers lint/format/typecheck only; coverage gates and e2e are separate commands.
+
+## D-014: vercel.json keys and shim (Iteration 6)
+Context: FR-060..FR-065 define behaviour; exact keys can only be validated by a real deployment (plan ambiguity a).
+Decision: `installCommand`/`buildCommand`/`outputDirectory` as in FR-060; `functions."api/index.py".includeFiles="apps/api/src/**"`; rewrites exactly per FR-061; headers: `/(.*)` security trio, `/assets/(.*)` immutable, `/` and `/index.html` revalidate (both, so VC-063 on `/` holds), `/api/(.*)` no-store; `ignoreCommand` `git diff --quiet HEAD^ HEAD -- . ':!specs' ':!*.md'`. Shim computes src path from `__file__`, prepends it, imports `app`. requirements.txt = `uv export --no-dev --no-hashes --no-emit-project --frozen`.
+Rejected: `builds`/`routes` legacy config; installing the project into the function (`--no-emit-project` avoids editable path); `importlib.metadata` version.
+Consequences: unverified until first preview; CI (iteration 7) must drift-check requirements.txt. Integration stub renamed to `test_deployed.py` (single file, 2 tests). Tests: `unit/test_vercel_config.py`, `interface/test_vercel_shim.py` (subprocess).

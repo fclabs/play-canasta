@@ -1,18 +1,21 @@
-# CONTEXT (state after Iteration 5)
+# CONTEXT (state after Iteration 6)
 
 ## Current state
-- Iterations 1-5 done. Iteration 5: Playwright e2e smoke (4 tests) against uvicorn-served `apps/web/dist`, and root `Makefile`. Web (4): Vite+React+TS welcome page in `apps/web` calling `GET /api/v1/hello`, 20 Vitest tests, 90.7% line coverage (gate 80%), initial JS 67 KB gz. API (1-3): runnable FastAPI app in `apps/api` (health, hello, settings, OpenAPI/docs under `/api`), FR-014 error envelope for every error, `X-Request-ID` on every response, one JSON `http_request` log line per request, optional static web hosting (`WEB_DIST_DIR`), layer-rule meta-test, 90% coverage gate (actual 100%).
+- Iterations 1-6 done. Iteration 6: Vercel config (`vercel.json`), Python function shim `api/index.py`, exported `apps/api/requirements.txt`, config/shim tests, deployed-URL integration tests. Iteration 5: Playwright e2e smoke (4 tests) against uvicorn-served `apps/web/dist`, and root `Makefile`. Web (4): Vite+React+TS welcome page in `apps/web` calling `GET /api/v1/hello`, 20 Vitest tests, 90.7% line coverage (gate 80%), initial JS 67 KB gz. API (1-3): runnable FastAPI app in `apps/api` (health, hello, settings, OpenAPI/docs under `/api`), FR-014 error envelope for every error, `X-Request-ID` on every response, one JSON `http_request` log line per request, optional static web hosting (`WEB_DIST_DIR`), layer-rule meta-test, 90% coverage gate (actual 100%).
 - Root hygiene exists: `.gitignore`, `.editorconfig`, placeholder `README.md` (rewritten in iteration 8).
-- Not yet present: `api/index.py`, `vercel.json`, `requirements.txt`, integration test (6); CI (7); docs (8).
-- 136 tests pass by default (unit 83, functional 2, interface 51) + 1 integration test (skipped unless `BASE_URL` set; default-deselected).
+- Not yet present: CI (7); docs (8).
+- 144 tests pass by default (unit 90, functional 2, interface 52) + 2 integration tests (skipped unless `BASE_URL` set; default-deselected).
 - Web versions (installed, locked): node local v26 (engines >=22 <23, only warns), react 19.3, vite 8.3, vitest 5.1, typescript 6.0, eslint 10, prettier 3.9, vitest-axe 0.1, @testing-library/react 16.
 - Versions: Python 3.12.x (uv-managed), fastapi 0.12x+, pydantic-settings, uvicorn; dev: pytest, pytest-cov, httpx, ruff, ty.
 
 ## File map
 ```
 .gitignore  .editorconfig  README.md (placeholder)  Makefile (install, dev-api, dev-web, test, lint)
+vercel.json                  Vercel project config (see Public interfaces)
+api/index.py                 Vercel function shim: prepends apps/api/src to sys.path, `from canasta_api.main import app`
 specs/                       spec, plan, artifacts (this dir)
 apps/api/
+  requirements.txt           uv export for Vercel (generated; drift-checked in CI, iteration 7)
   pyproject.toml             project canasta-api 0.1.0; hatchling; ruff/ty/pytest config
   .python-version (3.12)  uv.lock  .env.example
   src/canasta_api/
@@ -27,10 +30,10 @@ apps/api/
     services/hello.py        build_welcome_message(name) (no HTTP imports)
   tests/
     conftest.py              fixtures `settings`, `app`, `log_lines`
-    unit/   conftest (`fixed_clock`, `fake_timer`, `fixed_uuid`), test_settings, test_version, test_services_layering, test_hello_service, test_errors, test_request_logging, test_static, test_layer_rules (meta)
+    unit/   conftest (`fixed_clock`, `fake_timer`, `fixed_uuid`), test_settings, test_version, test_services_layering, test_hello_service, test_errors, test_request_logging, test_static, test_layer_rules (meta), test_vercel_config (vercel.json + requirements.txt content)
     functional/ test_visitor_welcome (2 flows)
-    interface/  conftest (`client`, `dist_dir`, `static_client`), test_static_hosting, test_health_latency (NFR-004), test_health_api, test_hello_api, test_openapi_and_routing, test_error_envelope_and_request_id
-    integration/ conftest + test_deployed_health (skipped unless BASE_URL; iteration 6 may extend)
+    interface/  conftest (`client`, `dist_dir`, `static_client`), test_vercel_shim (subprocess loads api/index.py with src off sys.path), test_static_hosting, test_health_latency (NFR-004), test_health_api, test_hello_api, test_openapi_and_routing, test_error_envelope_and_request_id
+    integration/ conftest + test_deployed (health 200; `/` HTML contains "Welcome to Canasta"; skipped unless BASE_URL)
 apps/web/
   package.json  package-lock.json  .nvmrc (22)  .env.example (VITE_API_BASE_URL=)
   index.html  vite.config.ts (proxy + vitest + coverage)  tsconfig.json  eslint.config.js  .prettierrc  .prettierignore
@@ -66,6 +69,9 @@ Empty `__init__.py` in routers/, schemas/, services/ (tests dirs have none; root
 - Web page accessible contract (reuse in Playwright): heading "Welcome to Canasta" (h1); textbox label "Your name" (`maxlength=40`, id `player-name`); button "Ping API" (type submit in a `<form>`; while pending disabled and named "Pinging…"); success `role="status"` containing the API message; failure `role="alert"`. Result element absent until a request completes. Input value is sliced to 40 on change.
 - Web build output: `apps/web/dist` (Vite default); `npm run build` = `tsc --noEmit && vite build && node scripts/check-bundle-size.mjs`.
 
+- Vercel (`vercel.json`, repo root = Vercel Root Directory): `installCommand` `npm ci --prefix apps/web`; `buildCommand` `npm run build --prefix apps/web`; `outputDirectory` `apps/web/dist`; `functions."api/index.py".includeFiles` = `apps/api/src/**`; `rewrites` in order `/api/(.*)` -> `/api/index`, then `/((?!api/).*)` -> `/index.html`; `headers`: `/(.*)` security trio (nosniff, strict-origin-when-cross-origin, DENY), `/assets/(.*)` immutable 1y, `/` and `/index.html` `public, max-age=0, must-revalidate`, `/api/(.*)` `no-store`; `ignoreCommand` = `git diff --quiet HEAD^ HEAD -- . ':!specs' ':!*.md'` (exit 0 = skip build). `WEB_DIST_DIR` must NOT be set on Vercel; set `APP_ENV` = preview/production in Vercel env.
+- Shim `api/index.py`: inserts `<repo>/apps/api/src` at `sys.path[0]` (if absent), imports `app`. Project not installed on Vercel (requirements omit it), so version comes from `canasta_api.__version__`.
+
 ## Conventions & invariants
 - Every route under `/api` (BR-002), domain routes under `/api/v1` (BR-003); test asserts all `Route` paths start with `/api` on the default (static-off) app. The only exception is the static catch-all, present only when `WEB_DIST_DIR` is valid. Any new FastAPI default route (e.g. oauth2 redirect) must be moved under `/api`.
 - `services/` must not import `fastapi`/`starlette` (AST test `tests/unit/test_services_layering.py`).
@@ -89,7 +95,8 @@ Run from `apps/api`:
 - Lint: `uv run ruff check .`; format check: `uv run ruff format --check .`; format: `uv run ruff format .`
 - Types: `uv run ty check`
 - Coverage gate: `uv run pytest --cov=canasta_api --cov-fail-under=90 --cov-report=term-missing` (not in addopts; run explicitly / in CI)
-- Integration (needs deployed app): `BASE_URL=https://... uv run pytest -m integration -o addopts=""`
+- Integration (needs deployed app): `BASE_URL=https://... uv run pytest -m integration -o addopts=""` (skips without BASE_URL)
+- Regenerate Vercel requirements after any dependency change: `uv lock && uv export --no-dev --no-hashes --no-emit-project --frozen > requirements.txt`; verify with `uv lock --check` and `uv export --no-dev --no-hashes --no-emit-project --frozen | diff - requirements.txt`
 - Tests: `uv run pytest` (excludes integration); per layer `uv run pytest -m unit|functional|interface`
 - Serve: `uv run uvicorn canasta_api.main:app --reload` (port 8000)
 - Python: `uv run python --version` -> 3.12.x
@@ -105,7 +112,9 @@ Run from repo root (`Makefile`): `make install` (`uv sync --frozen` + `npm ci`),
 - jsdom prints a harmless "HTMLCanvasElement getContext not implemented" note from axe.
 - Bundle check counts `<script src>`/`href` .js refs in dist/index.html only (not dynamic imports; none exist).
 - OpenAPI still documents FastAPI's default `HTTPValidationError` for 422 (not the envelope).
-- Integration test is only a health-check stub (extend in iteration 6).
+- `vercel.json` keys (`functions.includeFiles`, `ignoreCommand`, header `source` patterns for `/`, rewrite destination `/api/index`) are best-known forms, validated only by local content tests; a real deployment is required (spec §10, OQ-1).
+- Pending manual (need a real Vercel project): VC-060, VC-061, VC-062, VC-063 (live curl), VC-064, VC-065, VC-066 (function bundle size, NFR-006), VC-067 NFR-005 (p95 <= 500 ms on preview), VC-054 against a live preview.
+- `ignoreCommand` uses `HEAD^`; fails open (builds) on shallow/first commits.
 - Static serving sets no cache headers and no index.html `no-cache` policy; Vercel serves assets from the CDN, not this path.
 - Test run emits a `StarletteDeprecationWarning` (httpx vs `httpx2`); harmless, left as is.
 - `uv sync` installs the project itself editable (hatchling); Vercel requirements must use `--no-emit-project` (iteration 6).
