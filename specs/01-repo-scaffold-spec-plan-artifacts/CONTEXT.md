@@ -1,11 +1,11 @@
-# CONTEXT (state after Iteration 2)
+# CONTEXT (state after Iteration 3)
 
 ## Current state
-- Iterations 1-2 done: runnable FastAPI app in `apps/api` (health, hello, settings, OpenAPI/docs under `/api`), FR-014 error envelope for every error, `X-Request-ID` on every response, one JSON `http_request` log line per request.
+- Iterations 1-3 done: runnable FastAPI app in `apps/api` (health, hello, settings, OpenAPI/docs under `/api`), FR-014 error envelope for every error, `X-Request-ID` on every response, one JSON `http_request` log line per request, optional static web hosting (`WEB_DIST_DIR`), layer-rule meta-test, 90% coverage gate (actual 100%).
 - Root hygiene exists: `.gitignore`, `.editorconfig`, placeholder `README.md` (rewritten in iteration 8).
-- Not yet present: static hosting, coverage gate (3); `apps/web` (4); e2e + Makefile (5); `api/index.py`, `vercel.json`, `requirements.txt`, integration test (6); CI (7); docs (8).
-- 91 tests pass (unit 58, functional 2, interface 31; integration layer empty, default-deselected).
-- Versions: Python 3.12.x (uv-managed), fastapi 0.12x+, pydantic-settings, uvicorn; dev: pytest, httpx, ruff, ty.
+- Not yet present: `apps/web` (4); e2e + Makefile (5); `api/index.py`, `vercel.json`, `requirements.txt`, integration test (6); CI (7); docs (8).
+- 136 tests pass by default (unit 83, functional 2, interface 51) + 1 integration test (skipped unless `BASE_URL` set; default-deselected).
+- Versions: Python 3.12.x (uv-managed), fastapi 0.12x+, pydantic-settings, uvicorn; dev: pytest, pytest-cov, httpx, ruff, ty.
 
 ## File map
 ```
@@ -18,6 +18,7 @@ apps/api/
     __init__.py              __version__ = "0.1.0" (single source)
     settings.py              Settings(BaseSettings) + Final constants
     main.py                  create_app(settings=None) + module-level `app`
+    static.py                optional static hosting: is_servable_dist, is_api_path, resolve_asset, mount_static
     errors.py                AppError hierarchy, ERROR_STATUS map, envelope handlers
     logging.py               JsonFormatter, configure_logging, RequestContextMiddleware
     routers/{health,hello}.py   GET /api/v1/health, /api/v1/hello
@@ -25,10 +26,10 @@ apps/api/
     services/hello.py        build_welcome_message(name) (no HTTP imports)
   tests/
     conftest.py              fixtures `settings`, `app`, `log_lines`
-    unit/   conftest (`fixed_clock`, `fake_timer`, `fixed_uuid`), test_settings, test_version, test_services_layering, test_hello_service, test_errors, test_request_logging
+    unit/   conftest (`fixed_clock`, `fake_timer`, `fixed_uuid`), test_settings, test_version, test_services_layering, test_hello_service, test_errors, test_request_logging, test_static, test_layer_rules (meta)
     functional/ test_visitor_welcome (2 flows)
-    interface/  conftest (`client`), test_health_api, test_hello_api, test_openapi_and_routing, test_error_envelope_and_request_id
-    integration/ conftest only (stub test file comes in iteration 6)
+    interface/  conftest (`client`, `dist_dir`, `static_client`), test_static_hosting, test_health_latency (NFR-004), test_health_api, test_hello_api, test_openapi_and_routing, test_error_envelope_and_request_id
+    integration/ conftest + test_deployed_health (skipped unless BASE_URL; iteration 6 may extend)
 ```
 Empty `__init__.py` in routers/, schemas/, services/ (tests dirs have none; rootdir-based pytest imports).
 
@@ -39,6 +40,7 @@ Empty `__init__.py` in routers/, schemas/, services/ (tests dirs have none; root
 - HTTP: `GET /api/v1/health` -> `{"status":"ok","service":"canasta-api","version":__version__}`. `GET /api/v1/hello?name=` -> `{"message":"Welcome to Canasta, <name>!"}`; omitted name = `player`. Invalid name -> 422 `validation_error` envelope.
 - Name validation (FR-012): `schemas/hello.py::PlayerName = Annotated[str, Query(min_length=1, max_length=40), AfterValidator(validate_name)]`. `validate_name` rejects blank/spaces-only and any char not `isalpha()`, `isdecimal()` or in `NAME_ALLOWED_PUNCTUATION`; returns value unchanged (no trim). The default value (`DEFAULT_PLAYER_NAME`, defined in schemas/hello.py from `DEFAULT_NAME`) is not validated.
 - Service: `services/hello.py::build_welcome_message(name: str) -> str`.
+- Static hosting (FR-018): `static.mount_static(app, dist_dir)` adds ONE catch-all `GET /{full_path:path}` (hidden from OpenAPI). `create_app` calls it last, only if `settings.web_dist_dir` is set and `static.is_servable_dist` (dir with `index.html`); otherwise non-API paths hit the normal 404 envelope. `/api` and `/api/...` paths raise a Starlette 404 inside the catch-all (envelope, never HTML). Files are resolved with `resolve_asset(dist, relative)`: `resolve()` + `is_relative_to(root)` + `is_file()`; traversal, symlinks escaping dist, directories, NUL bytes -> None -> `index.html` fallback. Non-GET to a non-API path with static on -> 405 envelope.
 - Routers: `routers/health.py::router`, `routers/hello.py::router`, each `APIRouter(prefix=API_V1_PREFIX)`; included by `create_app`.
 
 - Envelope (`schemas/errors.py::ErrorEnvelope` with `ErrorBody`): exactly `{"error": {"code","message","request_id","details"}}`, `details` is `list[dict] | None`. Built by `errors.error_response(status, code, message, request_id, details=None, headers=None)`.
@@ -52,9 +54,11 @@ Empty `__init__.py` in routers/, schemas/, services/ (tests dirs have none; root
 - New `Final` constants in settings.py: `REQUEST_ID_HEADER`, `REQUEST_ID_PATTERN`, `REQUEST_LOG_EVENT`, `REQUEST_LOGGER_NAME`, `INTERNAL_ERROR_MESSAGE`.
 
 ## Conventions & invariants
-- Every route under `/api` (BR-002), domain routes under `/api/v1` (BR-003); test asserts all `Route` paths start with `/api`. Any new FastAPI default route (e.g. oauth2 redirect) must be moved under `/api`.
+- Every route under `/api` (BR-002), domain routes under `/api/v1` (BR-003); test asserts all `Route` paths start with `/api` on the default (static-off) app. The only exception is the static catch-all, present only when `WEB_DIST_DIR` is valid. Any new FastAPI default route (e.g. oauth2 redirect) must be moved under `/api`.
 - `services/` must not import `fastapi`/`starlette` (AST test `tests/unit/test_services_layering.py`).
 - `__version__` in `__init__.py` must equal `[project].version` (test `test_version.py`); never use `importlib.metadata` (not installed on Vercel).
+- Static tests: interface fixtures `dist_dir` (tmp `dist/{index.html,assets/app.js}` + `secret.txt` beside it) and `static_client` (`TestClient(create_app(Settings(_env_file=None, WEB_DIST_DIR=dist_dir)))`). Reuse for other tests needing a temp dist.
+- Marker conventions: every test module sets `pytestmark = pytest.mark.<unit|functional|interface|integration>` at module level; layers by directory. Meta-test `tests/unit/test_layer_rules.py` (AST) enforces: no `class Test*`; unit tests import no `TestClient` and call no `now/utcnow/today/time/time_ns/perf_counter/monotonic/sleep`; interface tests contain a test mentioning each of `validation_error`, `not_found`, `method_not_allowed`, `internal_error`; functional tests call `create_app()` and have docstrings. Timing tests belong to the interface layer (`test_health_latency.py` uses `time.perf_counter`, allowed there).
 - Tests: plain functions, Given/When/Then/Clean comments, module-level `pytestmark = pytest.mark.<layer>`, functional tests carry business docstrings. Default run excludes `integration` via `addopts = "-m 'not integration'"`.
 - Settings injection in tests: `Settings(_env_file=None)` (fixture `settings`), `create_app(settings)` (fixture `app`); env cases use `monkeypatch.setenv/delenv`. Interface layer fixture `client` = `TestClient(app)`.
 - Ruff rules E,W,F,I,UP,B,SIM, line length 88; `from __future__ import annotations` in all modules.
@@ -68,14 +72,17 @@ Run from `apps/api`:
 - Install: `uv sync --frozen` (dev: `uv sync`)
 - Lint: `uv run ruff check .`; format check: `uv run ruff format --check .`; format: `uv run ruff format .`
 - Types: `uv run ty check`
+- Coverage gate: `uv run pytest --cov=canasta_api --cov-fail-under=90 --cov-report=term-missing` (not in addopts; run explicitly / in CI)
+- Integration (needs deployed app): `BASE_URL=https://... uv run pytest -m integration -o addopts=""`
 - Tests: `uv run pytest` (excludes integration); per layer `uv run pytest -m unit|functional|interface`
 - Serve: `uv run uvicorn canasta_api.main:app --reload` (port 8000)
 - Python: `uv run python --version` -> 3.12.x
 
 ## Known gaps
 - OpenAPI still documents FastAPI's default `HTTPValidationError` for 422 (not the envelope).
-- No static serving (`web_dist_dir` loaded but unused), no coverage tooling (`pytest-cov`), no integration test file.
+- Integration test is only a health-check stub (extend in iteration 6).
+- Static serving sets no cache headers and no index.html `no-cache` policy; Vercel serves assets from the CDN, not this path.
 - Test run emits a `StarletteDeprecationWarning` (httpx vs `httpx2`); harmless, left as is.
 - `uv sync` installs the project itself editable (hatchling); Vercel requirements must use `--no-emit-project` (iteration 6).
 - No `tests/**/__init__.py`; test module basenames must stay unique across layers.
-- No layer-rule meta-test yet (iteration 3).
+- Meta-test checks error codes by string literal in interface test functions (heuristic, not full semantic proof).

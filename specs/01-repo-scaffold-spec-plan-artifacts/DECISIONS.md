@@ -41,3 +41,15 @@ Context: FR-016 needs one JSON line on stdout; tests must capture it and mock cl
 Decision: stdlib `logging` logger `canasta_api.request`, `StdoutHandler` resolving `sys.stdout` at emit time, `JsonFormatter`; clock/timer/uuid injected into the middleware constructor. `service` field added beyond FR-016.
 Rejected: structlog (extra dependency); `print`.
 Consequences: `LOG_LEVEL` above INFO suppresses `ok` lines (documented in CONTEXT).
+
+## D-008: Static hosting as one catch-all route in `static.py`, not StaticFiles mount (Iteration 3)
+Context: FR-018 needs SPA fallback, strict traversal safety, `/api` never shadowed, and non-API 404s on the envelope when unset.
+Decision: `static.mount_static` adds a single hidden `GET /{full_path:path}` route after all API routes; `resolve_asset` uses `resolve()` + `is_relative_to` + `is_file`; `/api` paths re-raise a Starlette 404 so the envelope handler answers. Only enabled for a dir with `index.html`.
+Rejected: `StaticFiles(html=True)` mount at `/` (no SPA fallback for unknown paths, mount shadows ordering and 404 body is not the envelope); a Starlette 404 exception handler for fallback.
+Consequences: with static on, route list contains one non-`/api` route; POST to non-API path gives 405 envelope.
+
+## D-009: Coverage gate is a documented command, not in addopts (Iteration 3)
+Context: VC-041 specifies an explicit `pytest --cov ... --cov-fail-under=90` invocation.
+Decision: `pytest-cov` added to the dev group; command documented in CONTEXT/README; pyproject `addopts` unchanged so `uv run pytest` stays fast and `--collect-only` per marker unaffected.
+Rejected: baking `--cov` into addopts (slows every run, interferes with debugging).
+Consequences: CI (iteration 7) must call the full coverage command.

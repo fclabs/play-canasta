@@ -9,6 +9,7 @@ from canasta_api.errors import register_exception_handlers
 from canasta_api.logging import RequestContextMiddleware, configure_logging
 from canasta_api.routers import health, hello
 from canasta_api.settings import API_PREFIX, SERVICE_NAME, Settings
+from canasta_api.static import is_servable_dist, mount_static
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -29,6 +30,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_middleware(RequestContextMiddleware, env=resolved.app_env)
     app.include_router(health.router)
     app.include_router(hello.router)
+    if resolved.web_dist_dir is not None and is_servable_dist(resolved.web_dist_dir):
+        mount_static(app, resolved.web_dist_dir)  # catch-all: must be added last
     return app
 
 

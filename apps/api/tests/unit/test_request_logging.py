@@ -323,3 +323,28 @@ def test_configure_logging_is_idempotent():
     assert sum(isinstance(h, StdoutHandler) for h in logger.handlers) == 1
     assert logger.level == logging.ERROR
     configure_logging("INFO")  # Clean
+
+
+def test_stdout_handler_swallows_write_failures_via_handle_error(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    # Given a stdout that fails on write and a handler that records handleError
+    class BrokenStdout:
+        def write(self, _: str) -> int:
+            raise OSError("closed")
+
+        def flush(self) -> None:
+            raise OSError("closed")
+
+    handled: list[logging.LogRecord] = []
+    handler = StdoutHandler()
+    handler.setFormatter(JsonFormatter())
+    monkeypatch.setattr(handler, "handleError", handled.append)
+    monkeypatch.setattr("sys.stdout", BrokenStdout())
+    record = logging.LogRecord("x", logging.INFO, __file__, 1, "m", None, None)
+
+    # When
+    handler.emit(record)
+
+    # Then the failure is routed to handleError, not raised
+    assert handled == [record]
