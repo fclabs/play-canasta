@@ -65,3 +65,15 @@ Context: FR-032 needs envelope message when present, else a fixed fallback, for 
 Decision: `getHello` normalises every failure into `ApiError(message)`; the page shows `error.message` (fallback for non-ApiError). A 200 body without a string `message` also yields the fallback.
 Rejected: returning a result union (more branching in UI); exposing raw responses to the page.
 Consequences: page stays trivial; coverage and tests focus on the client.
+
+## D-012: e2e script builds, config only verifies the bundle (Iteration 5)
+Context: the plan wants `npm run e2e` to build first, while Playwright's `webServer` must not build and must fail if the bundle is missing.
+Decision: `e2e` = `npm run build && playwright test`; `playwright.config.ts` throws if `dist/index.html` is absent; webServer is uvicorn on fixed port 8123 (avoids clashing with dev 8000) with absolute `WEB_DIST_DIR`.
+Rejected: building inside `webServer.command` (hides build failures, violates plan); reusing a running server (could test a stale app).
+Consequences: running `npx playwright test` directly requires a prior build; `@types/node` added for the config.
+
+## D-013: Makefile test/lint run both parts, then fail if either failed (Iteration 5)
+Context: VC-004 needs non-zero exit when either part fails.
+Decision: shell loop records status per part and exits 1 at the end, so both parts always report.
+Rejected: `&&` chaining (hides second part's failures).
+Consequences: lint covers lint/format/typecheck only; coverage gates and e2e are separate commands.

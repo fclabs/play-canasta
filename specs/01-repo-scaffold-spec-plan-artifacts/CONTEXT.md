@@ -1,16 +1,16 @@
-# CONTEXT (state after Iteration 4)
+# CONTEXT (state after Iteration 5)
 
 ## Current state
-- Iterations 1-4 done. Web (4): Vite+React+TS welcome page in `apps/web` calling `GET /api/v1/hello`, 20 Vitest tests, 90.7% line coverage (gate 80%), initial JS 67 KB gz. API (1-3): runnable FastAPI app in `apps/api` (health, hello, settings, OpenAPI/docs under `/api`), FR-014 error envelope for every error, `X-Request-ID` on every response, one JSON `http_request` log line per request, optional static web hosting (`WEB_DIST_DIR`), layer-rule meta-test, 90% coverage gate (actual 100%).
+- Iterations 1-5 done. Iteration 5: Playwright e2e smoke (4 tests) against uvicorn-served `apps/web/dist`, and root `Makefile`. Web (4): Vite+React+TS welcome page in `apps/web` calling `GET /api/v1/hello`, 20 Vitest tests, 90.7% line coverage (gate 80%), initial JS 67 KB gz. API (1-3): runnable FastAPI app in `apps/api` (health, hello, settings, OpenAPI/docs under `/api`), FR-014 error envelope for every error, `X-Request-ID` on every response, one JSON `http_request` log line per request, optional static web hosting (`WEB_DIST_DIR`), layer-rule meta-test, 90% coverage gate (actual 100%).
 - Root hygiene exists: `.gitignore`, `.editorconfig`, placeholder `README.md` (rewritten in iteration 8).
-- Not yet present: e2e + Makefile (5); `api/index.py`, `vercel.json`, `requirements.txt`, integration test (6); CI (7); docs (8).
+- Not yet present: `api/index.py`, `vercel.json`, `requirements.txt`, integration test (6); CI (7); docs (8).
 - 136 tests pass by default (unit 83, functional 2, interface 51) + 1 integration test (skipped unless `BASE_URL` set; default-deselected).
 - Web versions (installed, locked): node local v26 (engines >=22 <23, only warns), react 19.3, vite 8.3, vitest 5.1, typescript 6.0, eslint 10, prettier 3.9, vitest-axe 0.1, @testing-library/react 16.
 - Versions: Python 3.12.x (uv-managed), fastapi 0.12x+, pydantic-settings, uvicorn; dev: pytest, pytest-cov, httpx, ruff, ty.
 
 ## File map
 ```
-.gitignore  .editorconfig  README.md (placeholder)
+.gitignore  .editorconfig  README.md (placeholder)  Makefile (install, dev-api, dev-web, test, lint)
 specs/                       spec, plan, artifacts (this dir)
 apps/api/
   pyproject.toml             project canasta-api 0.1.0; hatchling; ruff/ty/pytest config
@@ -34,6 +34,7 @@ apps/api/
 apps/web/
   package.json  package-lock.json  .nvmrc (22)  .env.example (VITE_API_BASE_URL=)
   index.html  vite.config.ts (proxy + vitest + coverage)  tsconfig.json  eslint.config.js  .prettierrc  .prettierignore
+  playwright.config.ts   e2e/smoke.spec.ts   (@playwright/test, @types/node devDeps)
   scripts/check-bundle-size.mjs   gz initial JS (from dist/index.html refs) <= 150 KB, else exit 1
   src/main.tsx  App.tsx  index.css  vite-env.d.ts  test-setup.ts  vitest-axe.d.ts
   src/api/{client.ts,types.ts,client.test.ts}
@@ -80,7 +81,7 @@ Empty `__init__.py` in routers/, schemas/, services/ (tests dirs have none; root
 - ty config: `[tool.ty.environment] python-version = "3.12"`.
 
 - Web: no `any` in `src/` outside `*.test.*` (eslint `no-explicit-any` error). Tests are co-located; Vitest globals off (import from `vitest`); `src/test-setup.ts` registers jest-dom + vitest-axe matchers and RTL cleanup. Prettier width 90, double quotes. `tsconfig` strict + noUncheckedIndexedAccess. Only `VITE_*` env referenced. No file in apps/web mentions the api package (BR-001).
-- Web script names are exactly: dev, build, preview, lint, format:check, typecheck, test, test:coverage, e2e (no extra scripts; bundle check hangs off `build`). `e2e` is a placeholder that exits 1 until iteration 5.
+- Web script names are exactly: dev, build, preview, lint, format:check, typecheck, test, test:coverage, e2e (no extra scripts; bundle check hangs off `build`). `e2e` = `npm run build && playwright test`.
 
 ## Commands
 Run from `apps/api`:
@@ -93,10 +94,13 @@ Run from `apps/api`:
 - Serve: `uv run uvicorn canasta_api.main:app --reload` (port 8000)
 - Python: `uv run python --version` -> 3.12.x
 
-Run from `apps/web` (Node 22 per `.nvmrc`): `npm ci`; `npm run dev` (5173, proxy /api -> 127.0.0.1:8000); `npm run lint | format:check | typecheck | test | test:coverage | build | preview`; `npm run e2e` (placeholder, fails).
+Run from `apps/web` (Node 22 per `.nvmrc`): `npm ci`; `npm run dev` (5173, proxy /api -> 127.0.0.1:8000); `npm run lint | format:check | typecheck | test | test:coverage | build | preview`; `npm run e2e`.
+- E2E: `cd apps/web && npx playwright install chromium` once (CI: `npx playwright install --with-deps chromium`), then `npm run e2e`. It builds the bundle (`npm run build`), then Playwright's `webServer` starts `uv run --project ../api uvicorn canasta_api.main:app --host 127.0.0.1 --port 8123` with `WEB_DIST_DIR=<abs apps/web/dist>`, `LOG_LEVEL=WARNING`, waits on `/api/v1/health`, `reuseExistingServer: false`. `playwright.config.ts` throws if `dist/index.html` is missing. Needs `uv` on PATH and `uv sync` done in apps/api. Tests in `e2e/` are excluded from Vitest (`test.exclude`) and included in tsc/eslint. Artifacts `playwright-report/`, `test-results/` are gitignored.
+Run from repo root (`Makefile`): `make install` (`uv sync --frozen` + `npm ci`), `make dev-api` (uvicorn --reload on 8000), `make dev-web` (vite 5173, proxies /api to 127.0.0.1:8000), `make test` (api pytest then web vitest; runs both, exits non-zero if either fails), `make lint` (api ruff check, ruff format --check, ty; web lint, format:check, typecheck; both always run). No coverage/e2e targets.
 
 ## Known gaps
-- Web: dev proxy curl check (VC-034 proxy half) and no-horizontal-scroll (NFR-007, CSS only so far) are verified in iteration 5; `e2e` is a placeholder.
+- `make dev-api` hardcodes port 8000 (the vite proxy target); it fails if another process holds 8000.
+- e2e uses port 8123 and Chromium only; Playwright browsers must be installed separately.
 - Local Node was v26 while engines pin 22: only an engine warning, never run under real Node 22 locally (CI iteration 7 will).
 - jsdom prints a harmless "HTMLCanvasElement getContext not implemented" note from axe.
 - Bundle check counts `<script src>`/`href` .js refs in dist/index.html only (not dynamic imports; none exist).
