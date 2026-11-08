@@ -82,7 +82,7 @@ Details, CI setup and troubleshooting: [docs/deployment.md](docs/deployment.md).
 ## Repository layout
 
 ```
-apps/api/            FastAPI app (Python 3.12, uv): src/canasta_api, tests, requirements.txt
+apps/api/            FastAPI app (Python 3.12, uv): src/canasta_api, tests
 apps/web/            React client (Vite, TypeScript): src, e2e, scripts
 api/index.py         Vercel Python function entrypoint (imports the FastAPI app)
 vercel.json          Vercel build, routing and header config

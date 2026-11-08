@@ -84,7 +84,7 @@ def test_ignore_command_skips_only_specs_and_markdown():
 
 def test_requirements_file_excludes_the_project_and_dev_tools():
     # Given the exported requirements used by the Vercel function
-    text = (REPO_ROOT / "apps/api/requirements.txt").read_text(encoding="utf-8")
+    text = (REPO_ROOT / "requirements.txt").read_text(encoding="utf-8")
     names = {
         line.split("==")[0]
         for line in text.splitlines()

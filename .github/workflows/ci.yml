@@ -30,6 +30,7 @@ jobs:
               - 'apps/api/**'
               - 'api/**'
               - 'vercel.json'
+              - 'requirements.txt'
               - '.github/workflows/ci.yml'
             web:
               - 'apps/web/**'
@@ -61,7 +62,7 @@ jobs:
       - name: Lockfile is up to date
         run: uv lock --check
       - name: requirements.txt matches the lockfile
-        run: uv export --no-dev --no-hashes --no-emit-project --frozen | diff - requirements.txt
+        run: uv export --no-dev --no-hashes --no-emit-project --frozen | diff - ../../requirements.txt
 
   web:
     name: web

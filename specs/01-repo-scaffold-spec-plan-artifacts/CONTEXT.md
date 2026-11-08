@@ -19,7 +19,7 @@ api/index.py                 Vercel function shim: prepends apps/api/src to sys.
 specs/                       spec, plan, artifacts (this dir; not referenced by shipped docs)
 docs/                        overview, getting-started, architecture, deployment, limitations (.md)
 apps/api/
-  requirements.txt           uv export for Vercel (generated; drift-checked in CI)
+  (root) requirements.txt     uv export for Vercel (generated; drift-checked in CI)
   pyproject.toml             project canasta-api 0.1.0; hatchling; ruff/ty/pytest config
   .python-version (3.12)  uv.lock  .env.example
   src/canasta_api/
@@ -102,7 +102,7 @@ Run from `apps/api`:
 - Types: `uv run ty check`
 - Coverage gate: `uv run pytest --cov=canasta_api --cov-fail-under=90 --cov-report=term-missing` (not in addopts; run explicitly / in CI)
 - Integration (needs deployed app): `BASE_URL=https://... uv run pytest -m integration -o addopts=""` (skips without BASE_URL)
-- Regenerate Vercel requirements after any dependency change: `uv lock && uv export --no-dev --no-hashes --no-emit-project --frozen > requirements.txt`; verify with `uv lock --check` and `uv export --no-dev --no-hashes --no-emit-project --frozen | diff - requirements.txt`
+- Regenerate Vercel requirements after any dependency change: `uv lock && uv export --no-dev --no-hashes --no-emit-project --frozen > ../../requirements.txt` (run in apps/api); verify with `uv lock --check` and `uv export --no-dev --no-hashes --no-emit-project --frozen | diff - ../../requirements.txt`
 - Tests: `uv run pytest` (excludes integration); per layer `uv run pytest -m unit|functional|interface`
 - Serve: `uv run uvicorn canasta_api.main:app --reload` (port 8000)
 - Python: `uv run python --version` -> 3.12.x
