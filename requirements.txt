@@ -1,0 +1,3 @@
+# Vercel installs Python dependencies from the project root; the single source is the
+# lockfile export in apps/api (see docs/deployment.md).
+-r apps/api/requirements.txt
