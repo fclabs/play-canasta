@@ -40,5 +40,10 @@ def test_hello_rejects_invalid_names_with_422(client: TestClient, name: str):
     # Given / When
     response = client.get("/api/v1/hello", params={"name": name})
 
-    # Then (FastAPI default 422 body until the envelope arrives in iteration 2)
+    # Then
     assert response.status_code == 422
+    error = response.json()["error"]
+    assert error["code"] == "validation_error"
+    assert error["message"]
+    assert error["request_id"] == response.headers["X-Request-ID"]
+    assert [d["field"] for d in error["details"]] == ["name"]

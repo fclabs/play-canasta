@@ -34,3 +34,11 @@ class Settings(BaseSettings):
     log_level: LogLevel = Field(default="INFO", validation_alias="LOG_LEVEL")
     app_env: AppEnv = Field(default="local", validation_alias="APP_ENV")
     web_dist_dir: Path | None = Field(default=None, validation_alias="WEB_DIST_DIR")
+
+
+# --- request tracing / errors / logging constants ---
+REQUEST_ID_HEADER: Final[str] = "X-Request-ID"
+REQUEST_ID_PATTERN: Final[str] = r"^[A-Za-z0-9._-]{1,64}$"
+REQUEST_LOG_EVENT: Final[str] = "http_request"
+REQUEST_LOGGER_NAME: Final[str] = "canasta_api.request"
+INTERNAL_ERROR_MESSAGE: Final[str] = "Internal server error"

@@ -27,3 +27,29 @@ def test_visitor_is_welcomed_by_name():
 
     # Clean
     client.close()
+
+
+def test_visitor_with_bad_name_is_told_what_to_fix_and_can_quote_a_reference():
+    """
+    Given the Canasta service is up,
+    When a visitor introduces themselves with a name containing a forbidden
+    character,
+    Then the service explains the name is not acceptable, points at the name
+    field, and gives a reference number that matches the one on the response,
+    so support can trace the visit.
+    """
+    # Given
+    client = TestClient(create_app(Settings(_env_file=None)))
+
+    # When
+    response = client.get("/api/v1/hello", params={"name": "a;b"})
+
+    # Then
+    error = response.json()["error"]
+    assert response.status_code == 422
+    assert error["message"]
+    assert error["details"][0]["field"] == "name"
+    assert error["request_id"] == response.headers["X-Request-ID"]
+
+    # Clean
+    client.close()
