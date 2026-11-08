@@ -1,10 +1,11 @@
-# CONTEXT (state after Iteration 3)
+# CONTEXT (state after Iteration 4)
 
 ## Current state
-- Iterations 1-3 done: runnable FastAPI app in `apps/api` (health, hello, settings, OpenAPI/docs under `/api`), FR-014 error envelope for every error, `X-Request-ID` on every response, one JSON `http_request` log line per request, optional static web hosting (`WEB_DIST_DIR`), layer-rule meta-test, 90% coverage gate (actual 100%).
+- Iterations 1-4 done. Web (4): Vite+React+TS welcome page in `apps/web` calling `GET /api/v1/hello`, 20 Vitest tests, 90.7% line coverage (gate 80%), initial JS 67 KB gz. API (1-3): runnable FastAPI app in `apps/api` (health, hello, settings, OpenAPI/docs under `/api`), FR-014 error envelope for every error, `X-Request-ID` on every response, one JSON `http_request` log line per request, optional static web hosting (`WEB_DIST_DIR`), layer-rule meta-test, 90% coverage gate (actual 100%).
 - Root hygiene exists: `.gitignore`, `.editorconfig`, placeholder `README.md` (rewritten in iteration 8).
-- Not yet present: `apps/web` (4); e2e + Makefile (5); `api/index.py`, `vercel.json`, `requirements.txt`, integration test (6); CI (7); docs (8).
+- Not yet present: e2e + Makefile (5); `api/index.py`, `vercel.json`, `requirements.txt`, integration test (6); CI (7); docs (8).
 - 136 tests pass by default (unit 83, functional 2, interface 51) + 1 integration test (skipped unless `BASE_URL` set; default-deselected).
+- Web versions (installed, locked): node local v26 (engines >=22 <23, only warns), react 19.3, vite 8.3, vitest 5.1, typescript 6.0, eslint 10, prettier 3.9, vitest-axe 0.1, @testing-library/react 16.
 - Versions: Python 3.12.x (uv-managed), fastapi 0.12x+, pydantic-settings, uvicorn; dev: pytest, pytest-cov, httpx, ruff, ty.
 
 ## File map
@@ -30,6 +31,13 @@ apps/api/
     functional/ test_visitor_welcome (2 flows)
     interface/  conftest (`client`, `dist_dir`, `static_client`), test_static_hosting, test_health_latency (NFR-004), test_health_api, test_hello_api, test_openapi_and_routing, test_error_envelope_and_request_id
     integration/ conftest + test_deployed_health (skipped unless BASE_URL; iteration 6 may extend)
+apps/web/
+  package.json  package-lock.json  .nvmrc (22)  .env.example (VITE_API_BASE_URL=)
+  index.html  vite.config.ts (proxy + vitest + coverage)  tsconfig.json  eslint.config.js  .prettierrc  .prettierignore
+  scripts/check-bundle-size.mjs   gz initial JS (from dist/index.html refs) <= 150 KB, else exit 1
+  src/main.tsx  App.tsx  index.css  vite-env.d.ts  test-setup.ts  vitest-axe.d.ts
+  src/api/{client.ts,types.ts,client.test.ts}
+  src/pages/{Welcome.tsx,Welcome.test.tsx}   src/App.test.tsx
 ```
 Empty `__init__.py` in routers/, schemas/, services/ (tests dirs have none; rootdir-based pytest imports).
 
@@ -53,6 +61,10 @@ Empty `__init__.py` in routers/, schemas/, services/ (tests dirs have none; root
 - Middleware registration order in `create_app`: `configure_logging`, `register_exception_handlers`, then a single `app.add_middleware(RequestContextMiddleware, env=settings.app_env)`. It must stay the outermost user middleware (any middleware added later wraps it; add new ones BEFORE it so it remains outermost).
 - New `Final` constants in settings.py: `REQUEST_ID_HEADER`, `REQUEST_ID_PATTERN`, `REQUEST_LOG_EVENT`, `REQUEST_LOGGER_NAME`, `INTERNAL_ERROR_MESSAGE`.
 
+- Web: `getHello(name: string): Promise<HelloResponse>` in `src/api/client.ts` (also exports `ApiError`, `FALLBACK_ERROR_MESSAGE="Could not reach the server"`, `HELLO_PATH`). URL = `${import.meta.env.VITE_API_BASE_URL ?? ""}/api/v1/hello?name=${encodeURIComponent(name)}` (env read at call time, so tests use `vi.stubEnv`). Any failure (network, non-2xx without envelope message, invalid JSON, 200 without string `message`) throws `ApiError`; non-2xx with envelope throws `ApiError(error.message)`.
+- Web page accessible contract (reuse in Playwright): heading "Welcome to Canasta" (h1); textbox label "Your name" (`maxlength=40`, id `player-name`); button "Ping API" (type submit in a `<form>`; while pending disabled and named "Pinging…"); success `role="status"` containing the API message; failure `role="alert"`. Result element absent until a request completes. Input value is sliced to 40 on change.
+- Web build output: `apps/web/dist` (Vite default); `npm run build` = `tsc --noEmit && vite build && node scripts/check-bundle-size.mjs`.
+
 ## Conventions & invariants
 - Every route under `/api` (BR-002), domain routes under `/api/v1` (BR-003); test asserts all `Route` paths start with `/api` on the default (static-off) app. The only exception is the static catch-all, present only when `WEB_DIST_DIR` is valid. Any new FastAPI default route (e.g. oauth2 redirect) must be moved under `/api`.
 - `services/` must not import `fastapi`/`starlette` (AST test `tests/unit/test_services_layering.py`).
@@ -67,6 +79,9 @@ Empty `__init__.py` in routers/, schemas/, services/ (tests dirs have none; root
 - Every non-2xx response must use the envelope; tests assert it via the `assert_envelope` helper in `tests/interface/test_error_envelope_and_request_id.py`.
 - ty config: `[tool.ty.environment] python-version = "3.12"`.
 
+- Web: no `any` in `src/` outside `*.test.*` (eslint `no-explicit-any` error). Tests are co-located; Vitest globals off (import from `vitest`); `src/test-setup.ts` registers jest-dom + vitest-axe matchers and RTL cleanup. Prettier width 90, double quotes. `tsconfig` strict + noUncheckedIndexedAccess. Only `VITE_*` env referenced. No file in apps/web mentions the api package (BR-001).
+- Web script names are exactly: dev, build, preview, lint, format:check, typecheck, test, test:coverage, e2e (no extra scripts; bundle check hangs off `build`). `e2e` is a placeholder that exits 1 until iteration 5.
+
 ## Commands
 Run from `apps/api`:
 - Install: `uv sync --frozen` (dev: `uv sync`)
@@ -78,7 +93,13 @@ Run from `apps/api`:
 - Serve: `uv run uvicorn canasta_api.main:app --reload` (port 8000)
 - Python: `uv run python --version` -> 3.12.x
 
+Run from `apps/web` (Node 22 per `.nvmrc`): `npm ci`; `npm run dev` (5173, proxy /api -> 127.0.0.1:8000); `npm run lint | format:check | typecheck | test | test:coverage | build | preview`; `npm run e2e` (placeholder, fails).
+
 ## Known gaps
+- Web: dev proxy curl check (VC-034 proxy half) and no-horizontal-scroll (NFR-007, CSS only so far) are verified in iteration 5; `e2e` is a placeholder.
+- Local Node was v26 while engines pin 22: only an engine warning, never run under real Node 22 locally (CI iteration 7 will).
+- jsdom prints a harmless "HTMLCanvasElement getContext not implemented" note from axe.
+- Bundle check counts `<script src>`/`href` .js refs in dist/index.html only (not dynamic imports; none exist).
 - OpenAPI still documents FastAPI's default `HTTPValidationError` for 422 (not the envelope).
 - Integration test is only a health-check stub (extend in iteration 6).
 - Static serving sets no cache headers and no index.html `no-cache` policy; Vercel serves assets from the CDN, not this path.

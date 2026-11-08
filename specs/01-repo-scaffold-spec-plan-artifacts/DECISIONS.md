@@ -53,3 +53,15 @@ Context: VC-041 specifies an explicit `pytest --cov ... --cov-fail-under=90` inv
 Decision: `pytest-cov` added to the dev group; command documented in CONTEXT/README; pyproject `addopts` unchanged so `uv run pytest` stays fast and `--collect-only` per marker unaffected.
 Rejected: baking `--cov` into addopts (slows every run, interferes with debugging).
 Consequences: CI (iteration 7) must call the full coverage command.
+
+## D-010: Bundle-size check chained into `build`, not a separate script (Iteration 4)
+Context: the plan fixes the web scripts to exactly nine names, yet requires a bundle check "invoked by a package script".
+Decision: `build` = `tsc --noEmit && vite build && node scripts/check-bundle-size.mjs`; the check gzips JS files referenced by `dist/index.html` and exits 1 above 150 KB.
+Rejected: extra `check:bundle` script (violates the exact script list).
+Consequences: CI's `npm run build` also enforces VC-066; the script can be run alone after a build.
+
+## D-011: Client throws ApiError with a display-ready message; page only renders it (Iteration 4)
+Context: FR-032 needs envelope message when present, else a fixed fallback, for several failure modes.
+Decision: `getHello` normalises every failure into `ApiError(message)`; the page shows `error.message` (fallback for non-ApiError). A 200 body without a string `message` also yields the fallback.
+Rejected: returning a result union (more branching in UI); exposing raw responses to the page.
+Consequences: page stays trivial; coverage and tests focus on the client.
