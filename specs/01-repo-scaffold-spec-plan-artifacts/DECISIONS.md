@@ -83,3 +83,15 @@ Context: FR-060..FR-065 define behaviour; exact keys can only be validated by a 
 Decision: `installCommand`/`buildCommand`/`outputDirectory` as in FR-060; `functions."api/index.py".includeFiles="apps/api/src/**"`; rewrites exactly per FR-061; headers: `/(.*)` security trio, `/assets/(.*)` immutable, `/` and `/index.html` revalidate (both, so VC-063 on `/` holds), `/api/(.*)` no-store; `ignoreCommand` `git diff --quiet HEAD^ HEAD -- . ':!specs' ':!*.md'`. Shim computes src path from `__file__`, prepends it, imports `app`. requirements.txt = `uv export --no-dev --no-hashes --no-emit-project --frozen`.
 Rejected: `builds`/`routes` legacy config; installing the project into the function (`--no-emit-project` avoids editable path); `importlib.metadata` version.
 Consequences: unverified until first preview; CI (iteration 7) must drift-check requirements.txt. Integration stub renamed to `test_deployed.py` (single file, 2 tests). Tests: `unit/test_vercel_config.py`, `interface/test_vercel_shim.py` (subprocess).
+
+## D-015: CI path filter via dorny/paths-filter@v3; workflow file triggers both parts (Iteration 7)
+Context: FR-050 needs per-part change detection with a stable `ci-ok` gate; `ci-ok` must pass when jobs are skipped.
+Decision: `changes` job uses `dorny/paths-filter@v3` (outputs `api`, `web`); the workflow file is listed under both filters; `api`/`web` use `if: needs.changes.outputs.X == 'true'`; `e2e` runs if either is true. Other actions: checkout@v4, setup-uv@v5, setup-python@v5, setup-node@v4. `ci-ok` loops over `join(needs.*.result, ' ')` and fails on `failure`/`cancelled`. Job ids equal job names (`changes`, `api`, `web`, `e2e`, `ci-ok`).
+Rejected: `git diff` shell script (more custom code); a native `on.paths` filter (a skipped workflow never reports `ci-ok`, blocking merges); SHA pinning (version tags allowed by FR-053, Dependabot bumps them).
+Consequences: branch protection requires only `ci-ok`; actions untested on real runners until first push.
+
+## D-016: PyYAML as a dev dependency for the CI config test (Iteration 7)
+Context: VC-053 needs the workflow YAML parsed; stdlib has no YAML parser.
+Decision: `uv add --dev pyyaml` (dev group only; `uv export --no-dev` unchanged, drift check green); test in `tests/unit/test_ci_config.py`. PyYAML parses `on:` as boolean, so the test never reads the trigger key.
+Rejected: regex on raw text (brittle for per-job timeouts); a standalone script (outside the pytest layers).
+Consequences: lockfile gained pyyaml 6.0.3; requirements.txt unchanged.
