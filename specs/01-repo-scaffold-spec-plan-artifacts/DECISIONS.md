@@ -95,3 +95,9 @@ Context: VC-053 needs the workflow YAML parsed; stdlib has no YAML parser.
 Decision: `uv add --dev pyyaml` (dev group only; `uv export --no-dev` unchanged, drift check green); test in `tests/unit/test_ci_config.py`. PyYAML parses `on:` as boolean, so the test never reads the trigger key.
 Rejected: regex on raw text (brittle for per-job timeouts); a standalone script (outside the pytest layers).
 Consequences: lockfile gained pyyaml 6.0.3; requirements.txt unchanged.
+
+## D-017: Docs organised by reader need; quick start is two dev servers via make (Iteration 8)
+Context: shipped docs must serve someone who never saw the build, in a documentation space of README + `docs/`; NFR-001 caps the quick start at 5 commands for both dev servers.
+Decision: five task/reader-oriented docs (overview, getting-started, architecture, deployment, limitations) plus README; quick start = clone, `make install`, `make dev-api`, `make dev-web` (4 commands). Decisions D-001..D-016 appear as "works this way because" notes in architecture/deployment; no spec, plan or artifact references. D-004's hatchling choice is mentioned only in the layout.
+Rejected: one doc per iteration; a single-process quick start (needs a build step and an env var, more commands).
+Consequences: docs must be updated with behaviour changes; the "add an endpoint" recipe in getting-started was executed (155 tests incl. a new one) in a scratch clone and reverted.

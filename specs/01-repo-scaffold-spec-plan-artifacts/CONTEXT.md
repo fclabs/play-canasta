@@ -1,21 +1,23 @@
-# CONTEXT (state after Iteration 7)
+# CONTEXT (shipped state, after Iteration 8)
 
 ## Current state
-- Iterations 1-7 done. Iteration 7: GitHub Actions CI (`.github/workflows/ci.yml`, jobs changes/api/web/e2e/ci-ok) and `.github/dependabot.yml`, config test `tests/unit/test_ci_config.py` (PyYAML dev dep). Iteration 6: Vercel config (`vercel.json`), Python function shim `api/index.py`, exported `apps/api/requirements.txt`, config/shim tests, deployed-URL integration tests. Iteration 5: Playwright e2e smoke (4 tests) against uvicorn-served `apps/web/dist`, and root `Makefile`. Web (4): Vite+React+TS welcome page in `apps/web` calling `GET /api/v1/hello`, 20 Vitest tests, 90.7% line coverage (gate 80%), initial JS 67 KB gz. API (1-3): runnable FastAPI app in `apps/api` (health, hello, settings, OpenAPI/docs under `/api`), FR-014 error envelope for every error, `X-Request-ID` on every response, one JSON `http_request` log line per request, optional static web hosting (`WEB_DIST_DIR`), layer-rule meta-test, 90% coverage gate (actual 100%).
-- Root hygiene exists: `.gitignore`, `.editorconfig`, placeholder `README.md` (rewritten in iteration 8).
-- Not yet present: docs (8). CI has never run on GitHub (no remote verification yet).
+- SHIPPED: all 8 iterations done. The scaffold is complete and documented. Nothing has run on GitHub or Vercel yet (see Known gaps for the pending manual checks).
+- What exists: FastAPI app in `apps/api` (health, hello, settings, OpenAPI under `/api`, FR-014 error envelope, `X-Request-ID`, one JSON `http_request` log line per request, optional static hosting via `WEB_DIST_DIR`, layer-rule meta-test, 90% coverage gate, actual 100%); Vite/React/TS welcome page in `apps/web` (20 Vitest tests, 90.7% line coverage, gate 80%, initial JS 67 KB gz); Playwright e2e smoke (4 tests, port 8123); root `Makefile`; Vercel config (`vercel.json`, `api/index.py`, `apps/api/requirements.txt`); GitHub Actions CI (`changes`, `api`, `web`, `e2e`, `ci-ok`) and Dependabot; shipped docs (README + `docs/`).
 - 154 tests pass by default (unit 100, functional 2, interface 52) + 2 integration tests (skipped unless `BASE_URL` set; default-deselected).
-- Web versions (installed, locked): node local v26 (engines >=22 <23, only warns), react 19.3, vite 8.3, vitest 5.1, typescript 6.0, eslint 10, prettier 3.9, vitest-axe 0.1, @testing-library/react 16.
-- Versions: Python 3.12.x (uv-managed), fastapi 0.12x+, pydantic-settings, uvicorn; dev: pytest, pytest-cov, httpx, ruff, ty, pyyaml (CI config test only; not in requirements.txt).
+- Web versions (locked): node local v26 (engines >=22 <23, only warns), react 19.3, vite 8.3, vitest 5.1, typescript 6.0, eslint 10, prettier 3.9, vitest-axe 0.1, @testing-library/react 16, @playwright/test 1.65.
+- Versions: Python 3.12.x (uv-managed), fastapi, pydantic-settings, uvicorn; dev: pytest, pytest-cov, httpx, ruff, ty, pyyaml (CI config test only; not in requirements.txt).
+- Docs (iteration 8, written for readers who never saw the build): `README.md` (prereqs, 4-command quick start, commands, static mode, Vercel settings, layout), `docs/overview.md`, `docs/getting-started.md` (install/run/test/lint/e2e/regenerate requirements/add an endpoint; all commands were run), `docs/architecture.md`, `docs/deployment.md`, `docs/limitations.md`. Shipped docs must not reference the spec, plan or artifacts. If behaviour changes, update the matching doc (e.g. new error type -> architecture; CI job -> deployment).
+- Quick start (README): `git clone ... && cd play-canasta`, `make install`, `make dev-api` (8000), `make dev-web` (5173) = 4 commands. Verified in a clean worktree (fresh `.venv`/`node_modules`), using alternate ports because 8000 was occupied locally.
 
 ## File map
 ```
-.gitignore  .editorconfig  README.md (placeholder)  Makefile (install, dev-api, dev-web, test, lint)
+.gitignore  .editorconfig  README.md  Makefile (install, dev-api, dev-web, test, lint)
 vercel.json                  Vercel project config (see Public interfaces)
 .github/workflows/ci.yml     CI (see Public interfaces)
 .github/dependabot.yml       weekly uv (/apps/api), npm (/apps/web), github-actions (/)
 api/index.py                 Vercel function shim: prepends apps/api/src to sys.path, `from canasta_api.main import app`
-specs/                       spec, plan, artifacts (this dir)
+specs/                       spec, plan, artifacts (this dir; not referenced by shipped docs)
+docs/                        overview, getting-started, architecture, deployment, limitations (.md)
 apps/api/
   requirements.txt           uv export for Vercel (generated; drift-checked in CI)
   pyproject.toml             project canasta-api 0.1.0; hatchling; ruff/ty/pytest config
@@ -117,7 +119,7 @@ Run from repo root (`Makefile`): `make install` (`uv sync --frozen` + `npm ci`),
 - Bundle check counts `<script src>`/`href` .js refs in dist/index.html only (not dynamic imports; none exist).
 - OpenAPI still documents FastAPI's default `HTTPValidationError` for 422 (not the envelope).
 - `vercel.json` keys (`functions.includeFiles`, `ignoreCommand`, header `source` patterns for `/`, rewrite destination `/api/index`) are best-known forms, validated only by local content tests; a real deployment is required (spec §10, OQ-1).
-- Pending manual (need a real GitHub repo): VC-050 (PRs touching only web / only api / only README / the workflow -> expected jobs run or skip, `ci-ok` green), VC-051 (failing web test and a cancelled api job make `ci-ok` red), VC-075 (branch protection on `main` requires exactly `ci-ok`), VC-074 secrets list empty, NFR-002 CI timing, VC-052 on a real run (modify uv.lock without regenerating requirements.txt). `actionlint` passed locally; workflow never executed on GitHub.
+- Pending manual (need a real GitHub repo; also listed in docs/limitations.md): VC-050 (PRs touching only web / only api / only README / the workflow -> expected jobs run or skip, `ci-ok` green), VC-051 (failing web test and a cancelled api job make `ci-ok` red), VC-075 (branch protection on `main` requires exactly `ci-ok`), VC-074 secrets list empty, NFR-002 CI timing, VC-052 on a real run (modify uv.lock without regenerating requirements.txt). `actionlint` passed locally; workflow never executed on GitHub.
 - Pending manual (need a real Vercel project): VC-060, VC-061, VC-062, VC-063 (live curl), VC-064, VC-065, VC-066 (function bundle size, NFR-006), VC-067 NFR-005 (p95 <= 500 ms on preview), VC-054 against a live preview.
 - `ignoreCommand` uses `HEAD^`; fails open (builds) on shallow/first commits.
 - Static serving sets no cache headers and no index.html `no-cache` policy; Vercel serves assets from the CDN, not this path.
@@ -125,3 +127,5 @@ Run from repo root (`Makefile`): `make install` (`uv sync --frozen` + `npm ci`),
 - `uv sync` installs the project itself editable (hatchling); Vercel requirements must use `--no-emit-project` (iteration 6).
 - No `tests/**/__init__.py`; test module basenames must stay unique across layers.
 - Meta-test checks error codes by string literal in interface test functions (heuristic, not full semantic proof).
+- Pending manual (post-merge, listed in docs/limitations.md): VC-080 production half (welcome flow on the production Vercel URL), `ci-ok` green on the merged PR.
+- Docs describe `make dev-api`/Vite proxy as port-8000-bound; the quick start was verified with other ports because 8000 was held locally.
