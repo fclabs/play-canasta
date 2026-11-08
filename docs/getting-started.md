@@ -122,20 +122,20 @@ and runs the Playwright smoke tests in Chromium (welcome flow, error state, 375 
 
 ## Regenerate `requirements.txt`
 
-Vercel installs `apps/api/requirements.txt`, which is exported from the lockfile. After
+Vercel installs the repository-root `requirements.txt`, which is exported from the lockfile. After
 any change to API dependencies:
 
 ```sh
 cd apps/api
 uv lock
-uv export --no-dev --no-hashes --no-emit-project --frozen > requirements.txt
+uv export --no-dev --no-hashes --no-emit-project --frozen > ../../requirements.txt
 ```
 
 Verify (CI runs the same checks):
 
 ```sh
 uv lock --check
-uv export --no-dev --no-hashes --no-emit-project --frozen | diff - requirements.txt
+uv export --no-dev --no-hashes --no-emit-project --frozen | diff - ../../requirements.txt
 ```
 
 ## Add an endpoint

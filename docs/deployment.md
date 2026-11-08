@@ -15,7 +15,7 @@ does not deploy and must not hold Vercel tokens or reference `VERCEL_*` variable
 | Environment variable `APP_ENV` | `preview` (Preview), `production` (Production) |
 | `WEB_DIST_DIR` | do not set; the CDN serves the static files |
 
-The Python function installs `apps/api/requirements.txt` (a lockfile export). Keep it in
+The Python function installs the repository-root `requirements.txt` (a lockfile export; Vercel looks for Python dependencies at the project root and does not follow `-r` includes, so the file is the export itself). Keep it in
 sync when dependencies change: see [getting-started](getting-started.md#regenerate-requirementstxt).
 
 ### How a request is routed
